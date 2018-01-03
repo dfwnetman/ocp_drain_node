@@ -1,0 +1,16 @@
+[Unit]
+Description=Unschedule & Drain OCP pods from node
+After=network.target iptables.service atomic-openshift-node.service dnsmasq.service docker.service
+Wants=network.target iptables.service atomic-openshift-node.service dnsmasq.service docker.service
+[Service]
+Type=simple
+RemainAfterExit=true
+KillMode=none
+SendSIGKILL=no
+TimeoutSec=1min
+TimeoutStopSec=1min
+ExecStart=/root/os_unsched_node.sh start
+ExecStop=/root/os_unsched_node.sh stop
+
+[Install]
+WantedBy=multi-user.target
