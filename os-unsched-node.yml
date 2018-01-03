@@ -5,43 +5,37 @@
     node_type: unknown
 
   tasks:
-  - name: Set node type, using hostname
-    set_fact:
-      node_type="{{ansible_hostname[9]|upper}}{{ansible_hostname[10]|upper}}{{ansible_hostname[11]|upper}}"
+  - name: Check if kube config file exists
+    stat:
+      path: /root/.kube/config
+    register: kube_config_exists
 
-  - when: node_type=='APP' or node_type=='INF'
-    block:
-    - name: Check if kube config file exists
-      stat:
-        path: /root/.kube/config
-      register: kube_config_exists
+  - name: Create /root/.kube
+    file:
+      path: /root/.kube
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+      seuser: system_u
+      serole: object_r
+      setype: admin_home_t
+      selevel: s0
+    when: not kube_config_exists.stat.exists
 
-    - name: Create /root/.kube
-      file:
-        path: /root/.kube
-        state: directory
-        owner: root
-        group: root
-        mode: 0700
-        seuser: system_u
-        serole: object_r
-        setype: admin_home_t
-        selevel: s0
-      when: not kube_config_exists.stat.exists
-
-    - name: Copy kube config file
-      copy:
-        src: admin.kubeconfig
-        dest: /root/.kube/config
-        backup: yes
-        owner: root
-        group: root
-        mode: 0700
-        seuser: system_u
-        serole: object_r
-        setype: admin_home_t
-        selevel: s0
-      when: not kube_config_exists.stat.exists
+  - name: Copy kube config file
+    copy:
+      src: admin.kubeconfig
+      dest: /root/.kube/config
+      backup: yes
+      owner: root
+      group: root
+      mode: 0700
+      seuser: system_u
+      serole: object_r
+      setype: admin_home_t
+      selevel: s0
+    when: not kube_config_exists.stat.exists
 
   - name: Copy os_unsched_node.sh script
     copy:
