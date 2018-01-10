@@ -55,7 +55,11 @@ EnableNode(){
 }
 
 # Main
-oc_cmd='oc --config /root/.kube/config'
+sa_token='{{ sa_token }}'
+oc_cmd="oc --token $sa_token"
+node=$(hostname -f)
+$oc_cmd login --token $sa_token --insecure-skip-tls-verify {{ ocp_url }}
+
 node=$(hostname -f)
 logFile=/var/log/os-unsched-node.log
 logHdr="========================================================================"
@@ -75,6 +79,5 @@ case "$1" in
       echo "Usage: $0 <<start|stop>>"
       exit 1
 esac
-
 
 

@@ -5,41 +5,36 @@
     node_type: unknown
 
   tasks:
-  - name: Check if kube config file exists
-    stat:
-      path: /root/.kube/config
-    register: kube_config_exists
-
-  - name: Create /root/.kube
+  - name: Create drain log file
     file:
-      path: /root/.kube
-      state: directory
+      path: /var/log/os-unsched-node.log
+      state: touch
       owner: root
       group: root
-      mode: 0700
+      mode: 0644
       seuser: system_u
       serole: object_r
-      setype: admin_home_t
+      setype: var_log_t
       selevel: s0
-    when: not kube_config_exists.stat.exists
-
-  - name: Copy kube config file
-    copy:
-      src: admin.kubeconfig
-      dest: /root/.kube/config
-      backup: yes
-      owner: root
-      group: root
-      mode: 0700
-      seuser: system_u
-      serole: object_r
-      setype: admin_home_t
-      selevel: s0
-    when: not kube_config_exists.stat.exists
-
+    
+  - name: Create drain logrotate config
+    blockinfile:
+      dest: /etc/logrotate.d/os-unsched-node
+      create: yes
+      block: |
+        /var/log/os-unsched-node.log {
+            maxsize 50M
+            weekly
+            missingok
+            rotate 5
+            compress
+            notifempty
+            create 0644 root root
+        }
+  
   - name: Copy os_unsched_node.sh script
-    copy:
-      src: os_unsched_node.sh
+    template:
+      src: os_unsched_node.sh.j2
       dest: /root/os_unsched_node.sh
       owner: root
       group: root
