@@ -19,8 +19,8 @@ This playbook uses the oc_serviceaccount & oc_adm_policy_user custom ansible rol
 3. **Set sa_token** - Set local sa_token variable to drain-node-sa service account's token
 `sa_token=$(ansible masters -l masters[0] -a 'oc sa get-token -n openshift drain-node-sa'| egrep -v '\| SUCCESS \|')`
 
-4. **Install** - Run the following comman to install 
-`ansible-playbook -l nodes:\!masters -e sa_token=${sa_token} os-unsched-node.yml`
+4. **Install** - Run the following command to install 
+`ansible-playbook -l nodes:\!masters -e ocp_url=${ocp_url} -e sa_token=${sa_token} os-unsched-node.yml`
 
 
 
