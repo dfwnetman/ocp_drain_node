@@ -1,3 +1,10 @@
+---
+- hosts: all
+  gather_facts: yes
+  vars:
+    node_type: unknown
+
+  tasks:
   - name: Check if drain_node cluster role exists
     shell:
       oc describe clusterPolicy default  | grep -q drain_node
