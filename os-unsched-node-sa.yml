@@ -3,13 +3,19 @@
   gather_facts: yes
   vars:
     node_type: unknown
+    drain_node_exists_cmd: "oc describe clusterrole.rbac | grep -q drain_node"
 
   tasks:
+  - name: Set drain_node_exists_cmd for OCP <= 3.6
+    set_fact:
+      drain_node_exists_cmd="oc describe clusterPolicy default  | grep -q drain_node"
+    when: (openshift_release=='v3.4' or openshift_release=='v3.5' or openshift_release=='v3.6')
+
   - name: Check if drain_node cluster role exists
     shell:
-      oc describe clusterPolicy default  | grep -q drain_node
-    register: drain_node_exists
+      {{ drain_node_exists_cmd }}
     ignore_errors: yes
+    register: drain_node_exists
 
   - name: Create drain_node yaml
     blockinfile:
