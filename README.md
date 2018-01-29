@@ -5,9 +5,11 @@ This service will ensure a node drains its pods, before shutting down.
 This playbook uses the oc_serviceaccount & oc_adm_policy_user custom ansible modules available in the OpenShift installer.
 1. **Install OpenShift utilities** - Install atomic-openshift-utils
 `yum install atomic-openshift-utils`
-2. **Configure ansible** - Configure ansible to use the custom ansible modules & roles. Edit the /etc/ansible/ansible.cfg file, and set library:
-`library = /usr/share/ansible/openshift-ansible/roles/lib_openshift/library` & roles_path:
-`roles_path = /etc/ansible/roles:/usr/share/ansible/openshift-ansible/roles`
+2. **Configure ansible** - Configure ansible to use the custom ansible modules & roles. Edit the /etc/ansible/ansible.cfg file, and set library & roles_path:
+```python
+library = /usr/share/ansible/openshift-ansible/roles/lib_openshift/library
+roles_path = /etc/ansible/roles:/usr/share/ansible/openshift-ansible/roles
+```
 
 
 ## Installation
