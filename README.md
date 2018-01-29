@@ -14,16 +14,21 @@ roles_path = /etc/ansible/roles:/usr/share/ansible/openshift-ansible/roles
 
 ## Installation
 1. **Create service account** - Run playbook to create drain_node custom role and drain-node-sa service account
-`ansible-playbook -l masters[0] os-unsched-node-sa.yml`
+```bash
+ansible-playbook -l masters[0] os-unsched-node-sa.yml
+```
 
 2. **Set ocp_url** - Set local ocp_url variable to the OpenShift Container Platform server URL. For example,  
 `ocp_url=https://openshift.example.com`
 
-3. **Set sa_token** - Set local sa_token variable to drain-node-sa service account's token
-`sa_token=$(ansible masters -l masters[0] -a 'oc sa get-token -n openshift drain-node-sa'| egrep -v '\| SUCCESS \|')`
-
-4. **Install** - Run the following command to install 
-`ansible-playbook -l nodes:\!masters -e ocp_url=${ocp_url} -e sa_token=${sa_token} os-unsched-node.yml`
+3. **Set sa_token** - Set local sa_token variable to drain-node-sa service account's token:
+```bash
+sa_token=$(ansible masters -l masters[0] -a 'oc sa get-token -n openshift drain-node-sa'| egrep -v '\| SUCCESS \|')
+```
+4. **Install** - Run the following command to install:
+```bash
+ansible-playbook -l nodes:\!masters -e ocp_url=${ocp_url} -e sa_token=${sa_token} os-unsched-node.yml
+```
 
 
 
