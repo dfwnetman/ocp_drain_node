@@ -1,7 +1,6 @@
 [Unit]
 Description=Unschedule & Drain OCP pods from node
-# Before=multi-user.target shutdown.target
-# Requires=network.target iptables.service atomic-openshift-node.service dnsmasq.service docker.service
+Before=multi-user.target shutdown.target
 After=network.target iptables.service atomic-openshift-node.service dnsmasq.service docker.service
 Wants=network.target iptables.service atomic-openshift-node.service dnsmasq.service docker.service
 [Service]
