@@ -2,32 +2,16 @@
 This service will ensure a node drains its pods, before shutting down.
 
 ## Setup
-This playbook uses the oc_serviceaccount & oc_adm_policy_user custom ansible modules available in the OpenShift installer.
-1. **Install OpenShift utilities** - Install atomic-openshift-utils
-`yum install atomic-openshift-utils`
-2. **Configure ansible** - Configure ansible to use the custom ansible modules & roles. Edit the /etc/ansible/ansible.cfg file, and set library & roles_path (in the `[defaults]` section):
-```python
-library = /usr/share/ansible/openshift-ansible/roles/lib_openshift/library
-roles_path = /etc/ansible/roles:/usr/share/ansible/openshift-ansible/roles
-```
+This playbook is self-contained, and no longer uses the oc_serviceaccount & oc_adm_policy_user custom ansible modules.
+1. **KUBECONFIG** - The playbook requires "oc client" access to the cluster, via an existing KUBECONFIG (such as the one used during the OCP4 install, `/home/<<myinstalluser>>/ocp4_install/auth/kubeconfig ocp4-drain-node.yml`).
+2. **Utility/Helper Node** - This playbook requires ssh access to a node that contains the KUBECONFIG file (such as the utility/helper node used to install).
+3. **Ansible hosts file** - This playbook requires the ansible hosts inventory file, hosts_ocp4_qc, to contain the `Utility/Helper Node` (such as `myhelpernode.ocp4.example.com`).
 
 
 ## Installation
-1. **Create service account** - Run playbook to create drain_node custom role and drain-node-sa service account
+1. **Install** - Run the following command to install:
 ```bash
-ansible-playbook -l masters[0] os-unsched-node-sa.yml
-```
-
-2. **Set ocp_url** - Set local ocp_url variable to the OpenShift Container Platform server URL. For example,  
-`ocp_url=https://openshift.example.com`
-
-3. **Set sa_token** - Set local sa_token variable to drain-node-sa service account's token:
-```bash
-sa_token=$(ansible masters -l masters[0] -a 'oc sa get-token -n openshift drain-node-sa'| egrep -v '\| SUCCESS \|')
-```
-4. **Install** - Run the following command to install:
-```bash
-ansible-playbook -l nodes:\!masters -e ocp_url=${ocp_url} -e sa_token=${sa_token} os-unsched-node.yml
+ansible-playbook -i hosts_ocp4_qc -e kube_config=/home/user/ocp4_install/auth/kubeconfig ocp4-drain-node.yml
 ```
 
 

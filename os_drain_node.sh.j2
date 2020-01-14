@@ -1,0 +1,47 @@
+#!/bin/bash
+
+DisableNode(){
+  echo -e "$logHdr\n$(date) Cordoning node"  >> ${logFile}
+  LoginOcp
+  $oc_cmd adm cordon ${node}  >> ${logFile} 2>&1
+  $oc_cmd adm drain ${node} --force --delete-local-data --ignore-daemonsets=True >> ${logFile} 2>&1
+  echo "$(date) Node Cordoned"  >> ${logFile}
+}
+
+EnableNode(){
+  echo -e "$logHdr\n$(date) Uncordoning node" >> ${logFile}
+  LoginOcp
+  $oc_cmd adm uncordon ${node}  >> ${logFile} 2>&1
+  echo "$(date) Node Uncordoned"  >> ${logFile}
+}
+
+LoginOcp(){
+  $oc_cmd login --insecure-skip-tls-verify ${ocp_url}  >> ${logFile} 2>&1
+}
+
+
+# Main
+export KUBECONFIG=/usr/local/etc/.kube/config
+
+ocp_url="{{ ocp_url }}"
+sa_token="{{ sa_token }}"
+oc_cmd="oc --token $sa_token"
+node=$(hostname -f)
+logFile=/var/log/os-drain-node.log
+logHdr="========================================================================"
+
+numIntervals=90
+sleepInterval=2
+
+case "$1" in
+  stop)
+      DisableNode
+      ;;
+  start)
+      EnableNode
+      ;;
+
+  *)
+      echo "Usage: $0 <<start|stop>>"
+      exit 1
+esac

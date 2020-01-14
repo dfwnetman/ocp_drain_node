@@ -1,0 +1,235 @@
+
+- hosts: utility[0]
+  gather_facts: yes
+
+  tasks:
+
+  - name: Check if os_drain_node cluster role exists
+    shell:
+      oc get clusterrole | grep -q os_drain_node
+    environment:
+      KUBECONFIG: "{{ kube_config }}"
+    register: os_drain_node_exists
+    ignore_errors: yes
+
+  - when: os_drain_node_exists.rc!=0
+    block:
+
+    - name: Create os_drain_node_cr yaml
+      blockinfile:
+        dest: /tmp/os_drain_node_cr.yaml
+        create: yes
+        block: |
+          apiVersion: v1
+          kind: ClusterRole
+          metadata:
+            name: os_drain_node
+          rules:
+          - apiGroups:
+            - ""
+            resources:
+            - nodes
+            verbs:
+            - get
+            - list
+            - patch
+            - update
+          - apiGroups:
+            - ""
+            resources:
+            - pods
+            verbs:
+            - create
+            - delete
+            - get
+            - list
+            - patch
+            - update
+          - apiGroups:
+            - ""
+            resources:
+            - pods/eviction
+            verbs:
+            - create
+            - delete
+            - get
+            - list
+            - patch
+            - update
+          - apiGroups:
+            - ""
+            resources:
+            - replicationcontrollers
+            verbs:
+            - create
+            - delete
+            - get
+            - list
+            - patch
+            - update
+
+    - name: Create os_drain_node cluster role
+      shell:
+        oc create -f /tmp/os_drain_node_cr.yaml
+      environment:
+        KUBECONFIG: "{{ kube_config }}"
+
+    - name: Check if os-cluster-ops namespace exists
+      shell:
+        oc get project os-cluster-ops
+      environment:
+        KUBECONFIG: "{{ kube_config }}"
+      register: os_cluster_ops_ns_exists
+      ignore_errors: yes
+
+    - name: Create os-cluster-ops namespace
+      shell:
+        oc new-project os-cluster-ops
+      environment:
+        KUBECONFIG: "{{ kube_config }}"
+      when: os_cluster_ops_ns_exists.rc!=0
+
+    - name: Create os_drain_node_sa yaml
+      blockinfile:
+        dest: /tmp/os_drain_node_sa.yaml
+        create: yes
+        block: |
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            namespace: os-cluster-ops
+            name: drain-node-sa
+
+    - name: Create the drain node account
+      shell:
+        oc create -f /tmp/os_drain_node_sa.yaml
+      environment:
+        KUBECONFIG: "{{ kube_config }}"
+
+    - name: Grant the drain service account access to os_drain_node cluster role
+      shell:
+        oc adm policy add-cluster-role-to-user os_drain_node system:serviceaccount:os-cluster-ops:drain-node-sa
+      environment:
+        KUBECONFIG: "{{ kube_config }}"
+
+    - name: Grant the drain service account access to daemon-set-controller cluster role
+      shell:
+        oc adm policy add-cluster-role-to-user system:controller:daemon-set-controller system:serviceaccount:os-cluster-ops:drain-node-sa
+      environment:
+        KUBECONFIG: "{{ kube_config }}"
+
+    - name: Grant the drain service account access to replicaset-controller cluster role
+      shell:
+        oc adm policy add-cluster-role-to-user system:controller:replicaset-controller system:serviceaccount:os-cluster-ops:drain-node-sa
+      environment:
+        KUBECONFIG: "{{ kube_config }}"
+
+    - name: Remove os_drain_node_cr yaml
+      file:
+        dest: /tmp/os_drain_node_cr.yaml
+        state: absent
+
+    - name: Remove os_drain_node_sa yaml
+      file:
+        dest: /tmp/os_drain_node_sa.yaml
+        state: absent
+
+  - name: Get URL for OCP 4 API
+    shell:
+      oc whoami --show-server
+    environment:
+      KUBECONFIG: "{{ kube_config }}"
+    register: ocp_url_cmd
+
+  - name: Set ocp_url
+    set_fact:
+      ocp_url: "{{ocp_url_cmd.stdout}}"
+
+  - name: Get SA token
+    shell:
+      oc sa get-token -n os-cluster-ops drain-node-sa
+    environment:
+      KUBECONFIG: "{{ kube_config }}"
+    register: sa_token_cmd
+
+  - name: Set sa_token
+    set_fact:
+      sa_token: "{{sa_token_cmd.stdout}}"
+
+  - name: Stub out 'drain node' script
+    template:
+      src: os_drain_node.sh.j2
+      dest: /tmp/os_drain_node.sh
+    delegate_to: localhost
+  - name: URL encode 'drain node' script
+    shell:
+      python -c "import sys,urllib; print(urllib.quote(sys.argv[1]))" "$(cat /tmp/os_drain_node.sh)"
+    delegate_to: localhost
+    register: drain_node_script_encoded_cmd
+
+  - name: Set drain_node_script_encoded
+    set_fact:
+      drain_node_script_encoded: "{{drain_node_script_encoded_cmd.stdout}}"
+
+  - name: Create 70-worker-drain-node Machine Config yaml
+    blockinfile:
+      dest: /tmp/70-worker-drain-node.yaml
+      create: yes
+      block: |
+        apiVersion: machineconfiguration.openshift.io/v1
+        kind: MachineConfig
+        metadata:
+          labels:
+            machineconfiguration.openshift.io/role: worker
+          name: 70-worker-drain-node
+        spec:
+          config:
+            ignition:
+              config: {}
+              version: 2.2.0
+            storage:
+              files:
+              - contents:
+                  source: data:,{{drain_node_script_encoded}}
+                  verification: {}
+                filesystem: root
+                mode: 0755
+                path: /usr/local/bin/os-drain-node.sh
+            systemd:
+              units:
+              - contents: |
+                  [Unit]
+                  Description=Unschedule & Drain OCP pods from node
+                  After=network-online.target crio.service
+                  Wants=network-online.target crio.service
+
+                  [Service]
+                  Type=oneshot
+                  RemainAfterExit=yes
+                  TimeoutSec=1min
+                  TimeoutStopSec=1min
+                  ExecStart=/usr/local/bin/os-drain-node.sh start
+                  ExecStop=/usr/local/bin/os-drain-node.sh stop
+
+                  [Install]
+                  WantedBy=multi-user.target
+                enable: true
+                name: os-drain-node.service
+
+  - name: Create 70-worker-drain-node Machine Config
+    shell:
+      oc create -f /tmp/70-worker-drain-node.yaml
+    environment:
+      KUBECONFIG: "{{ kube_config }}"
+
+  - name: Remove stubbed-out 'drain node' script
+    file:
+      dest: /tmp/os_drain_node.sh
+      state: absent
+    delegate_to: localhost
+
+  - name: Remove MC yaml
+    file:
+      dest: /tmp/70-worker-drain-node.yaml
+      state: absent
+
